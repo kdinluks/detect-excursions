@@ -1,3 +1,4 @@
+import pandas
 import websocket
 import thread
 import time
@@ -87,154 +88,154 @@ def on_close(ws):
 
 def on_open(ws):
     if os.path.isfile(data):
-        with open(data, 'rb') as tsdata:
-            reader = csv.reader(tsdata, delimiter=delimiter)
-            i = 0
-            m = 1
-            datapoints = []
-            tagname = ""
-            equipname = ""
-            meter = ""
-            payloads = []
-            nCount = 0
-            excursion = {"start": 0, "end": 0, "total": 0, "tag": "", "active": False, "SOL": "", "SDL": "", "count": 0}
+        df = pandas.read_csv(data, sep=delimiter, header=None)
+        df.sort_values(by=[tsi], ascending=True, inplace=True)
 
-            print("Generating packets with " + str(dpsize) + " data points...")
+        i = 0
+        m = 1
+        datapoints = []
+        tagname = ""
+        equipname = ""
+        meter = ""
+        payloads = []
+        nCount = 0
+        excursion = {"start": 0, "end": 0, "total": 0, "tag": "", "active": False, "SOL": "", "SDL": "", "count": 0}
 
-            for row in reader:
-                # Create the packets to send it over WS
-                # Define the tag name if none exists
-                if meter == "":
-                    tagname = row[2]
-                    equipname = row[1]
-                    meter = equipname + "_" + tagname
+        print("Generating packets with " + str(dpsize) + " data points...")
 
-                # If current tag name is different than the tag name from the file, define another tag name
-                elif meter != equipname + "_" + tagname:
-                    payloads.append(payload(ws, meter, datapoints, m))
-                    tagname = row[2]
-                    equipname = row[1]
-                    meter = equipname + "_" + tagname
-                    m += 1
-                    i = 0
-                    datapoints = []
+        for i, row in df.iterrows():
+            # Create the packets to send it over WS
+            # Define the tag name if none exists
+            if meter == "":
+                tagname = row[2]
+                equipname = row[1]
+                meter = equipname + "_" + tagname
 
-                # Add the last point in the packet and exit the loop
-                if i >= dpsize:
-                    payloads.append(payload(ws, meter, datapoints, m))
-                    m += 1
-                    i = 0
-                    datapoints = []
+            # If current tag name is different than the tag name from the file, define another tag name
+            elif meter != equipname + "_" + tagname:
+                payloads.append(payload(ws, meter, datapoints, m))
+                tagname = row[2]
+                equipname = row[1]
+                meter = equipname + "_" + tagname
+                m += 1
+                i = 0
+                datapoints = []
 
-                # Verifies if the value is a valid number or don't add the point
-                try:
-                    value = float(row[4])
-                    tstamp = calendar.timegm(time.strptime(row[3], timestamp)) * 1000
-                    datapoints.append([tstamp, value])
-                except:
-                    value = 0.0
-                    i += 1
-                    continue
+            # Add the last point in the packet and exit the loop
+            if i >= dpsize:
+                payloads.append(payload(ws, meter, datapoints, m))
+                m += 1
+                i = 0
+                datapoints = []
 
-                # Verifies for SOL excursions on High limit
-                if value > solH:
+            # Verifies if the value is a valid number or don't add the point
+            try:
+                value = float(row[4])
+                tstamp = calendar.timegm(time.strptime(row[3], timestamp)) * 1000
+                datapoints.append([tstamp, value])
+            except:
+                value = 0.0
+                i += 1
+                continue
 
-                    # Verifies for active SOL High excursion
-                    if excursion['SOL'] == "High":
-                        excursion['total'] += (tstamp - excursion['end'])
-                        excursion['end'] = tstamp
-                        excursion['count'] += 1
-                    else:
-                        # Deactivates SOL Low excursion and send it
-                        if excursion['SOL'] == "Low":
-                            excursion['active'] = False
-                            # if nCount == 0:
-                            excursion['total'] += (tstamp - excursion['end'])
-                            excursion['end'] = tstamp
-                            excursion['count'] += 1
+            # Verifies for SOL excursions on High limit
+            if value > solH:
 
-                            # Only add if total time is greater than 60 seconds
-                            if excursion['total'] > 60000:
-                                sendExcursions(excursion)
-
-                        # Create new SOL High excursion
-                        excursion['end'] = tstamp
-                        excursion['start'] = tstamp
-                        excursion['total'] = 0
-                        excursion['active'] = True
-                        excursion['tag'] = meter
-                        excursion['SOL'] = "High"
-                        excursion['count'] = 1
-
-                # Verifies for SOL excursions on Low Limit
-                elif value < solL:
-
-                    # Verifies for active SOL Low excursion
-                    if excursion['SOL'] == "Low":
-                        excursion['total'] += (tstamp - excursion['end'])
-                        excursion['end'] = tstamp
-                        excursion['count'] += 1
-                    else:
-                        # Deactivates SOL High excursion and send it
-                        if excursion['SOL'] == "High":
-                            excursion['active'] = False
-                            # if nCount == 0:
-                            excursion['total'] += (tstamp - excursion['end'])
-                            excursion['end'] = tstamp
-                            excursion['count'] += 1
-
-
-                            # Only add if total time is greater than 60 seconds
-                            if excursion['total'] > 60000:
-                                sendExcursions(excursion)
-
-                        # Create new SOL Low excursion
-                        excursion['end'] = tstamp
-                        excursion['start'] = tstamp
-                        excursion['total'] = 0
-                        excursion['active'] = True
-                        excursion['tag'] = meter
-                        excursion['SOL'] = "Low"
-                        excursion['count'] = 1
-
-                # If not excursion
+                # Verifies for active SOL High excursion
+                if excursion['SOL'] == "High":
+                    excursion['total'] += (tstamp - excursion['end'])
+                    excursion['end'] = tstamp
+                    excursion['count'] += 1
                 else:
-                    # If there's an active excursion, de-activates it and send it
-                    if excursion['SOL'] != "" and (value > (solL + dBand) and (tstamp - excursion['end']) > dSecs):
+                    # Deactivates SOL Low excursion and send it
+                    if excursion['SOL'] == "Low":
                         excursion['active'] = False
-                        # excursion['total'] += (tstamp - excursion['end'])
-                        # excursion['end'] = tstamp
+                        # if nCount == 0:
+                        excursion['total'] += (tstamp - excursion['end'])
+                        excursion['end'] = tstamp
+                        excursion['count'] += 1
 
                         # Only add if total time is greater than 60 seconds
                         if excursion['total'] > 60000:
                             sendExcursions(excursion)
-                        
-                        # Reset excursion object
-                        excursion['end'] = 0
-                        excursion['start'] = 0
-                        excursion['total'] = 0
-                        excursion['tag'] = ""
-                        excursion['SOL'] = ""
-                        excursion['count'] = 0
 
-                    elif excursion['SOL'] != "" and (value < (solL + dBand) and (tstamp - excursion['end']) < dSecs):
+                    # Create new SOL High excursion
+                    excursion['end'] = tstamp
+                    excursion['start'] = tstamp
+                    excursion['total'] = 0
+                    excursion['active'] = True
+                    excursion['tag'] = meter
+                    excursion['SOL'] = "High"
+                    excursion['count'] = 1
+
+            # Verifies for SOL excursions on Low Limit
+            elif value < solL:
+
+                # Verifies for active SOL Low excursion
+                if excursion['SOL'] == "Low":
+                    excursion['total'] += (tstamp - excursion['end'])
+                    excursion['end'] = tstamp
+                    excursion['count'] += 1
+                else:
+                    # Deactivates SOL High excursion and send it
+                    if excursion['SOL'] == "High":
+                        excursion['active'] = False
+                        # if nCount == 0:
                         excursion['total'] += (tstamp - excursion['end'])
                         excursion['end'] = tstamp
                         excursion['count'] += 1
-                        # nCount = 1
 
-                i += 1
+                        # Only add if total time is greater than 60 seconds
+                        if excursion['total'] > 60000:
+                            sendExcursions(excursion)
 
-            # Append last packet to payload list
-            if i > 0:
-                payloads.append(payload(ws, meter, datapoints, m+1))
+                    # Create new SOL Low excursion
+                    excursion['end'] = tstamp
+                    excursion['start'] = tstamp
+                    excursion['total'] = 0
+                    excursion['active'] = True
+                    excursion['tag'] = meter
+                    excursion['SOL'] = "Low"
+                    excursion['count'] = 1
 
-            # Send payloads
-            # sendPayload(ws, payloads)
+            # If not excursion
+            else:
+                # If there's an active excursion, de-activates it and send it
+                if excursion['SOL'] != "" and (value > (solL + dBand) and (tstamp - excursion['end']) > dSecs):
+                    excursion['active'] = False
+                    # excursion['total'] += (tstamp - excursion['end'])
+                    # excursion['end'] = tstamp
 
-            # Send last excursion
-            if excursion['SOL'] != "" and excursion['total'] > 60000:
-                sendExcursions(excursion)
+                    # Only add if total time is greater than 60 seconds
+                    if excursion['total'] > 60000:
+                        sendExcursions(excursion)
+                    
+                    # Reset excursion object
+                    excursion['end'] = 0
+                    excursion['start'] = 0
+                    excursion['total'] = 0
+                    excursion['tag'] = ""
+                    excursion['SOL'] = ""
+                    excursion['count'] = 0
+
+                elif excursion['SOL'] != "" and (value < (solL + dBand) and (tstamp - excursion['end']) < dSecs):
+                    excursion['total'] += (tstamp - excursion['end'])
+                    excursion['end'] = tstamp
+                    excursion['count'] += 1
+                    # nCount = 1
+
+            i += 1
+
+        # Append last packet to payload list
+        if i > 0:
+            payloads.append(payload(ws, meter, datapoints, m+1))
+
+        # Send payloads
+        # sendPayload(ws, payloads)
+
+        # Send last excursion
+        if excursion['SOL'] != "" and excursion['total'] > 60000:
+            sendExcursions(excursion)
 
     else:
         print("Time-series csv data file not found")
