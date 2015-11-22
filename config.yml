@@ -1,0 +1,25 @@
+uaa:
+  uri: ""
+  client: ""
+  secret: ""
+  username: ""
+  password: ""
+  token: ""
+csv:
+  delimiter: ";"
+  concatchar: "_"
+  timestamp: "%m/%d/%Y %I:%M:%S %p"
+  metername: -1
+  indexes: 
+    equipment: 1
+    tag: 2
+    timestamp: 3
+    value: 4
+excursion:
+  uri: ""
+excursions-config:
+  TAG_NAME:
+    solH: 10
+    solL: 0
+    deadband: 1
+    deadms: 300000
