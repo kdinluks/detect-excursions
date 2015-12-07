@@ -21,7 +21,7 @@
 ```bash
 	python detect-excursions.py <csv-file> --token <token> --es <excursion service>
 ```
-## To run the script for mote than 1 file
+## To run the script for more than 1 file
 ```bash
     python detect-excursions.py <csv-file1> <csv-file2> <csv-file3> --token <token> --es <excursion service>
 ```
@@ -67,3 +67,24 @@ Where:
             --secret : used to specify UAA Secret
             --username : used to specify UAA username with access to the excursions service
             --password : used to specify UAA user password
+
+## Output of the script
+
+        The script sends a JSON for every excursion it finds to a REST endpoint using the POST method.
+        The JSON structury is
+        ```JSON
+        [
+          {
+            "active": true,
+            "count": 132480,
+            "duration": 7948741000,
+            "end": 1446335940000,
+            "highLimit": 96.0,
+            "lowLimit": 1624.0,
+            "source": "OSIPI",
+            "start": 1438387199000,
+            "tag": "AT-HBG-2730_ATT_PXI27301.PV",
+            "type": "SOL Low"
+          }
+        ]
+        ```
